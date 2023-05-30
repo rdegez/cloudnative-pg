@@ -162,7 +162,7 @@ func CreateClusterPodSpec(
 		},
 		SchedulerName: cluster.Spec.SchedulerName,
 		Containers:    createPostgresContainers(cluster, envConfig),
-		Volumes:       createPostgresVolumes(cluster, podName),
+		Volumes:       createPostgresVolumes(cluster, podName, false),
 		SecurityContext: CreatePodSecurityContext(
 			cluster.GetSeccompProfile(),
 			cluster.GetPostgresUID(),

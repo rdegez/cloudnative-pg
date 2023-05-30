@@ -18,6 +18,7 @@ package specs
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/kballard/go-shellquote"
 	batchv1 "k8s.io/api/batch/v1"
@@ -249,6 +250,15 @@ func (role jobRole) getJobName(instanceName string) string {
 	return fmt.Sprintf("%s-%s", instanceName, role)
 }
 
+func getRoleFromInstanceName(instanceName, jobName string) jobRole {
+	role, found := strings.CutPrefix(jobName, instanceName+"-")
+	if !found {
+		return ""
+	}
+
+	return jobRole(role)
+}
+
 // GetPossibleJobNames get all the possible job names for a given instance
 func GetPossibleJobNames(instanceName string) []string {
 	res := make([]string, len(jobRoleList))
@@ -303,7 +313,7 @@ func createPrimaryJob(cluster apiv1.Cluster, nodeSerial int, role jobRole, initC
 							SecurityContext: CreateContainerSecurityContext(cluster.GetSeccompProfile()),
 						},
 					},
-					Volumes: createPostgresVolumes(cluster, instanceName),
+					Volumes: createPostgresVolumes(cluster, instanceName, true),
 					SecurityContext: CreatePodSecurityContext(
 						cluster.GetSeccompProfile(),
 						cluster.GetPostgresUID(),
