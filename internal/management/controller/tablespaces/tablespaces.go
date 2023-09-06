@@ -21,8 +21,21 @@ import (
 
 	apiv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 	"github.com/cloudnative-pg/cloudnative-pg/internal/management/controller/tablespaces/infrastructure"
+	"github.com/cloudnative-pg/cloudnative-pg/pkg/fileutils"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/management/log"
+	"github.com/cloudnative-pg/cloudnative-pg/pkg/specs"
 )
+
+type tablespaceStorageManager interface {
+	storageExists(tbsName string) (bool, error)
+}
+
+type instanceTablespaceStorageManager struct{}
+
+func (ism instanceTablespaceStorageManager) storageExists(tbsName string) (bool, error) {
+	location := specs.LocationForTablespace(tbsName)
+	return fileutils.FileExists(location)
+}
 
 type (
 	// TablespaceAction encodes the action necessary for a tablespaceAction
