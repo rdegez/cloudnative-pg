@@ -54,17 +54,9 @@ const (
 	TbsToCreate TablespaceAction = "CREATE"
 	// TbsToUpdate tablespaces action represent tablespace going to update
 	TbsToUpdate TablespaceAction = "UPDATE"
-	// TbsReserved tablespaces which is reserved by operator
-	TbsReserved TablespaceAction = "RESERVED"
 	// TbsPending tablespaces action represent tablespace can not be created now, waiting for pending pvc ready
 	TbsPending TablespaceAction = "PENDING"
 )
-
-// reservedTablespaceName tablespace name which not managed by operator
-var reservedTablespaceName = map[string]interface{}{
-	"pg_default": nil,
-	"pg_global":  nil,
-}
 
 // TablespaceConfigurationAdapter the adapter class for tablespace configuration
 type TablespaceConfigurationAdapter struct {
@@ -95,9 +87,6 @@ func evaluateNextActions(
 	for tbsInSpecName, tbsInSpec := range tablespaceInSpecMap {
 		_, isTbsInDB := tbsInDBNamed[tbsInSpecName]
 		switch {
-		case isTablespaceNameReserved(tbsInSpecName):
-			tablespaceByAction[TbsReserved] = append(tablespaceByAction[TbsReserved],
-				tablespaceAdapterFromName(tbsInSpecName, *tbsInSpec))
 		case !isTbsInDB:
 			tablespaceByAction[TbsToCreate] = append(tablespaceByAction[TbsToCreate],
 				tablespaceAdapterFromName(tbsInSpecName, *tbsInSpec))
@@ -117,7 +106,6 @@ func (r TablespaceByAction) convertToTablespaceNameByStatus() TablespaceNameBySt
 		TbsToCreate:     apiv1.TablespaceStatusPendingReconciliation,
 		TbsToUpdate:     apiv1.TablespaceStatusPendingReconciliation,
 		TbsPending:      apiv1.TablespaceStatusPendingReconciliation,
-		TbsReserved:     apiv1.TablespaceStatusReserved,
 	}
 
 	tablespaceByStatus := make(TablespaceNameByStatus)
@@ -143,13 +131,4 @@ func getTablespaceNames(tbsSlice []TablespaceConfigurationAdapter) []string {
 		names[i] = tbs.Name
 	}
 	return names
-}
-
-// isTablespaceNameReserved checks if a tablespace is reserved for PostgreSQL
-// or the operator
-func isTablespaceNameReserved(name string) bool {
-	if _, isReserved := reservedTablespaceName[name]; isReserved {
-		return isReserved
-	}
-	return false
 }
