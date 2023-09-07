@@ -19,6 +19,7 @@ package v1
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -59,6 +60,16 @@ const (
 	// DefaultApplicationUserName is the name of application database owner if not specified
 	DefaultApplicationUserName = DefaultApplicationDatabaseName
 )
+
+// reservedTablespaceName tablespace name which not managed by operator
+var reservedTablespaceName = []string{
+	"pg_default",
+	"pg_global",
+}
+
+// a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters,
+// '-' or '.', and must start and end with an alphanumeric character
+var tablespaceNameRegex = regexp.MustCompile("^([a-z0-9][-a-z0-9.]*)?[a-z0-9]$")
 
 // clusterLog is for logging in this package.
 var clusterLog = log.WithName("cluster-resource").WithValues("version", "v1")
@@ -1544,6 +1555,21 @@ func (r *Cluster) validateTablespacesNames() field.ErrorList {
 	}
 
 	for name := range r.Spec.Tablespaces {
+		if slices.Contains(reservedTablespaceName, name) {
+			result = append(result, field.Invalid(
+				field.NewPath("spec", "tablespaces"),
+				name,
+				"tablespace name must not be a reserved name"))
+		}
+
+		if !tablespaceNameRegex.MatchString(name) {
+			result = append(result, field.Invalid(
+				field.NewPath("spec", "tablespaces"),
+				name,
+				"tablespace name must consist of lower case alphanumeric characters,'-' or '.', "+
+					"and must start and end with an alphanumeric character"))
+		}
+
 		if len(name) > PostgresIdentifierMaxLen {
 			result = append(result, field.Invalid(
 				field.NewPath("spec", "tablespaces"),

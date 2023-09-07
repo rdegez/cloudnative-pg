@@ -128,8 +128,7 @@ func (r *TablespaceReconciler) applyTablespaceActions(
 	contextLog := log.FromContext(ctx).WithName("tbs_reconciler")
 
 	for action, tbsAdapters := range tbsByAction {
-		switch action {
-		case TbsIsReconciled, TbsReserved:
+		if action == TbsIsReconciled {
 			contextLog.Debug("no action required", "action", action)
 			continue
 		}
