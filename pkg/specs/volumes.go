@@ -50,9 +50,15 @@ func LocationForTablespace(tablespaceName string) string {
 // PvcNameForTablespace returns the normalized tablespace volume name for a given
 // tablespace, on a cluster pod
 func PvcNameForTablespace(podName, tablespaceName string) string {
-	// TODO: have a function to convert tablespace names to a lowercase RFC 1123 label
 	name := strings.ReplaceAll(tablespaceName, "_", "-")
-	return podName + "-tbs-" + name
+	return podName + "-tbs-" + strings.ToLower(name)
+}
+
+// VolumeMountNameForTablespace returns the normalized tablespace volume name for a given
+// tablespace, on a cluster pod
+func VolumeMountNameForTablespace(tablespaceName string) string {
+	name := strings.ReplaceAll(tablespaceName, "_", "-")
+	return strings.ToLower(name)
 }
 
 func createPostgresVolumes(cluster apiv1.Cluster, podName string) []corev1.Volume {
@@ -133,7 +139,7 @@ func createPostgresVolumes(cluster apiv1.Cluster, podName string) []corev1.Volum
 		for i = range tbsNames {
 			result = append(result,
 				corev1.Volume{
-					Name: tbsNames[i],
+					Name: VolumeMountNameForTablespace(tbsNames[i]),
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: PvcNameForTablespace(podName, tbsNames[i]),
@@ -281,7 +287,7 @@ func createPostgresVolumeMounts(cluster apiv1.Cluster) []corev1.VolumeMount {
 		for i = range tbsNames {
 			volumeMounts = append(volumeMounts,
 				corev1.VolumeMount{
-					Name:      tbsNames[i],
+					Name:      VolumeMountNameForTablespace(tbsNames[i]),
 					MountPath: MountForTablespace(tbsNames[i]),
 				},
 			)
