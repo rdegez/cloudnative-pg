@@ -36,3 +36,13 @@ spec:
   walStorage:
     storageClass: ${E2E_DEFAULT_STORAGE_CLASS}
     size: 1Gi
+
+  tablespaces:
+    tbs1gi:
+      storage:
+        storageClass: ${E2E_DEFAULT_STORAGE_CLASS}
+        size: 1Gi
+    tbs2gi:
+      storage:
+        storageClass: ${E2E_DEFAULT_STORAGE_CLASS}
+        size: 2Gi
