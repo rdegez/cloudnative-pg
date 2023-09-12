@@ -47,18 +47,36 @@ func LocationForTablespace(tablespaceName string) string {
 	return fmt.Sprintf("%s/%s/data", PgTableSpaceVolumePath, tablespaceName)
 }
 
+// convertPostgresIdentifier returns a postgres identifier without the characters
+// that are illegal in K8s domain/label names (i.e. _ and $, which are converted to -)
+func convertPostgresIdentifier(tablespaceName string) string {
+	// Postgres identifiers can begin with _ or a letter, K8's must begin
+	// with an alphanumeric. We convert _ to 1 in this edge case
+	if strings.HasPrefix(tablespaceName, "_") {
+		tablespaceName = strings.Replace(tablespaceName, "_", "1", 1)
+	}
+	// name := strings.ReplaceAll(tablespaceName, "_", "-")
+	name := strings.ReplaceAll(tablespaceName, "$", "-")
+	name = strings.ToLower(name)
+	return name
+}
+
+// LabelForTablespace returns the normalized tablespace volume name for a given
+// tablespace, on a cluster pod
+func LabelForTablespace(tablespaceName string) string {
+	return convertPostgresIdentifier(tablespaceName)
+}
+
 // PvcNameForTablespace returns the normalized tablespace volume name for a given
 // tablespace, on a cluster pod
 func PvcNameForTablespace(podName, tablespaceName string) string {
-	name := strings.ReplaceAll(tablespaceName, "_", "-")
-	return podName + "-tbs-" + strings.ToLower(name)
+	return podName + "-tbs-" + convertPostgresIdentifier(tablespaceName)
 }
 
 // VolumeMountNameForTablespace returns the normalized tablespace volume name for a given
 // tablespace, on a cluster pod
 func VolumeMountNameForTablespace(tablespaceName string) string {
-	name := strings.ReplaceAll(tablespaceName, "_", "-")
-	return strings.ToLower(name)
+	return convertPostgresIdentifier(tablespaceName)
 }
 
 func createPostgresVolumes(cluster apiv1.Cluster, podName string) []corev1.Volume {

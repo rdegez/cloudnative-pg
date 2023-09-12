@@ -55,7 +55,7 @@ func Build(
 		utils.PvcRoleLabelName:      string(configuration.Role),
 	}
 	if configuration.Role == utils.PVCRolePgTablespace {
-		labels[utils.TablespaceNameLabelName] = configuration.TablespaceName
+		labels[utils.TablespaceNameLabelName] = specs.LabelForTablespace(configuration.TablespaceName)
 	}
 
 	builder := resources.NewPersistentVolumeClaimBuilder().

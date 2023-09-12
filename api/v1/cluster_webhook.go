@@ -67,7 +67,7 @@ var systemTablespacesPrefix = "pg_"
 
 // regex to verify a Postgres-compliant identifier
 // see https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
-var postgresIdentifierRegex = regexp.MustCompile("^[a-z_][a-z0-9_$]*$")
+var postgresIdentifierRegex = regexp.MustCompile("^[a-zA-Z_][a-zA-Z0-9_$]*$")
 
 // clusterLog is for logging in this package.
 var clusterLog = log.WithName("cluster-resource").WithValues("version", "v1")
