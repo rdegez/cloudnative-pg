@@ -259,7 +259,7 @@ func isPodNeedingRollout(
 	for message, check := range checkers {
 		podRollout, err := check(status, cluster)
 		if err != nil {
-			contextLogger.Error(err, "while checking if pod needs rollout", "check", check)
+			contextLogger.Error(err, "while checking if pod needs rollout")
 			continue
 		}
 		if podRollout.required {

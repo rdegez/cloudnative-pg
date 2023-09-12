@@ -531,6 +531,7 @@ const (
 	// TablespaceStatusPendingReconciliation indicates the tablespace in Spec requires creation in the DB
 	TablespaceStatusPendingReconciliation TablespaceStatus = "pending"
 	// TablespaceStatusReserved indicates this tablespace is reserved by the operator. E.g. `pg_global`
+	// TODO: remove this status
 	TablespaceStatusReserved TablespaceStatus = "reserved"
 )
 

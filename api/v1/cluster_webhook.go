@@ -1420,7 +1420,7 @@ func validateStorageConfigurationSize(structPath string, storageConfiguration St
 // Validate a change in the storage
 func (r *Cluster) validateStorageChange(old *Cluster) field.ErrorList {
 	return validateStorageConfigurationChange(
-		"storage",
+		field.NewPath("spec", "storage"),
 		old.Spec.StorageConfiguration,
 		r.Spec.StorageConfiguration,
 	)
@@ -1440,7 +1440,11 @@ func (r *Cluster) validateWalStorageChange(old *Cluster) field.ErrorList {
 		}
 	}
 
-	return validateStorageConfigurationChange("walStorage", *old.Spec.WalStorage, *r.Spec.WalStorage)
+	return validateStorageConfigurationChange(
+		field.NewPath("spec", "walStorage"),
+		*old.Spec.WalStorage,
+		*r.Spec.WalStorage,
+	)
 }
 
 // validateTablespacesChange checks that no tablespaces have been deleted, and that
@@ -1459,28 +1463,29 @@ func (r *Cluster) validateTablespacesChange(old *Cluster) field.ErrorList {
 		}
 	}
 
+	var errs field.ErrorList
 	for k, oldConf := range old.Spec.Tablespaces {
-		newConf, found := r.Spec.Tablespaces[k]
-		if !found {
-			return field.ErrorList{
+		if newConf, found := r.Spec.Tablespaces[k]; found {
+			errs = append(errs, validateStorageConfigurationChange(
+				field.NewPath("spec", "tablespaces", k),
+				oldConf.Storage,
+				newConf.Storage,
+			)...)
+		} else {
+			errs = append(errs,
 				field.Invalid(
-					field.NewPath("spec", "tablespaces"),
+					field.NewPath("spec", "tablespaces", k),
 					r.Spec.Tablespaces,
-					"no tablespace can be deleted once created"),
-			}
-		}
-		errs := validateStorageConfigurationChange("tablespaces", oldConf.Storage, newConf.Storage)
-		if len(errs) > 0 {
-			return errs
+					"no tablespace can be deleted once created"))
 		}
 	}
 
-	return nil
+	return errs
 }
 
 // validateStorageConfigurationChange generates an error list by comparing two StorageConfiguration
 func validateStorageConfigurationChange(
-	structPath string,
+	structPath *field.Path,
 	oldStorage StorageConfiguration,
 	newStorage StorageConfiguration,
 ) field.ErrorList {
@@ -1503,7 +1508,7 @@ func validateStorageConfigurationChange(
 
 	return field.ErrorList{
 		field.Invalid(
-			field.NewPath("spec", structPath),
+			structPath,
 			newSize,
 			fmt.Sprintf("can't shrink existing storage from %v to %v", oldSize, newSize)),
 	}

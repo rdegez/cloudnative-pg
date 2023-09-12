@@ -41,6 +41,7 @@ func NewPostgresTablespaceManager(superDB *sql.DB) PostgresTablespaceManager {
 	}
 }
 
+// TODO: check capitalization
 const sysVarTmpTbs = "TEMP_TABLESPACES"
 
 // List the tablespaces in the database
@@ -52,6 +53,7 @@ func (tbsMgr PostgresTablespaceManager) List(ctx context.Context) ([]Tablespace,
 
 	rows, err := tbsMgr.superUserDB.QueryContext(
 		ctx,
+		// TODO: check the query (and put it in a constant)
 		`SELECT spcname, 
        	CASE WHEN spcname=ANY(regexp_split_to_array(current_setting('TEMP_TABLESPACES'),E'\\s*,\\s*')) 
            THEN true ELSE false END AS temp 
