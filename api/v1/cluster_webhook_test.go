@@ -3279,6 +3279,42 @@ var _ = Describe("Tablespaces validation", func() {
 		Expect(cluster.Validate()).To(HaveLen(1))
 	})
 
+	It("should produce an error if there are duplicate tablespaces", func() {
+		cluster := &Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster1",
+			},
+			Spec: ClusterSpec{
+				Instances: 3,
+				StorageConfiguration: StorageConfiguration{
+					Size: "10Gi",
+				},
+				Tablespaces: map[string]*TablespaceConfiguration{
+					// each repetition is 14 char long, so 5x14 = 70 char > postgres limit
+					"my_tablespace": {
+						Storage: StorageConfiguration{
+							Size: "10Gi",
+						},
+						Temporary: true,
+					},
+					"my_TAblespace": {
+						Storage: StorageConfiguration{
+							Size: "10Gi",
+						},
+						Temporary: true,
+					},
+					"another": {
+						Storage: StorageConfiguration{
+							Size: "10Gi",
+						},
+						Temporary: true,
+					},
+				},
+			},
+		}
+		Expect(cluster.Validate()).To(HaveLen(1))
+	})
+
 	It("should produce an error if the storage configured for the tablespace is invalid", func() {
 		cluster := &Cluster{
 			ObjectMeta: metav1.ObjectMeta{
