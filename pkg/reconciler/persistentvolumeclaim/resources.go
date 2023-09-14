@@ -312,7 +312,8 @@ func GetInstancePVCs(
 	instanceName string,
 	namespace string,
 ) ([]corev1.PersistentVolumeClaim, error) {
-	getPVC := func(role utils.PVCRole, instance string) (*corev1.PersistentVolumeClaimList, error) {
+	// getPvcList returns the PVCs matching the instance name as well as the role
+	getPvcList := func(role utils.PVCRole, instance string) (*corev1.PersistentVolumeClaimList, error) {
 		var pvcList corev1.PersistentVolumeClaimList
 		matchClusterName := client.MatchingLabels{
 			utils.InstanceNameLabelName: instance,
@@ -334,7 +335,7 @@ func GetInstancePVCs(
 
 	var pvcs []corev1.PersistentVolumeClaim
 
-	pgData, err := getPVC(utils.PVCRolePgData, instanceName)
+	pgData, err := getPvcList(utils.PVCRolePgData, instanceName)
 	if err != nil {
 		return nil, err
 	}
@@ -342,7 +343,7 @@ func GetInstancePVCs(
 		pvcs = append(pvcs, pgData.Items...)
 	}
 
-	pgWal, err := getPVC(utils.PVCRolePgWal, instanceName)
+	pgWal, err := getPvcList(utils.PVCRolePgWal, instanceName)
 	if err != nil {
 		return nil, err
 	}
@@ -350,12 +351,12 @@ func GetInstancePVCs(
 		pvcs = append(pvcs, pgWal.Items...)
 	}
 
-	pgTbs, err := getPVC(utils.PVCRolePgTablespace, instanceName)
+	tablespacesPVClist, err := getPvcList(utils.PVCRolePgTablespace, instanceName)
 	if err != nil {
 		return nil, err
 	}
-	if pgTbs != nil && len(pgTbs.Items) > 0 {
-		pvcs = append(pvcs, pgTbs.Items...)
+	if tablespacesPVClist != nil && len(tablespacesPVClist.Items) > 0 {
+		pvcs = append(pvcs, tablespacesPVClist.Items...)
 	}
 
 	return pvcs, nil
