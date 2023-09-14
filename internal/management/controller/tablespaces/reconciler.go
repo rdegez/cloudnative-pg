@@ -64,7 +64,7 @@ func (r *TablespaceReconciler) Reconcile(
 		return reconcile.Result{}, fmt.Errorf("could not fetch Cluster: %w", err)
 	}
 
-	if cluster.ShouldCreateTablespaces() {
+	if !cluster.ShouldCreateTablespaces() {
 		contextLogger.Info("no tablespaces to create")
 		return reconcile.Result{}, nil
 	}
