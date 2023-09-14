@@ -64,8 +64,8 @@ func (r *TablespaceReconciler) Reconcile(
 		return reconcile.Result{}, fmt.Errorf("could not fetch Cluster: %w", err)
 	}
 
-	if cluster.Spec.Tablespaces == nil || len(cluster.Spec.Tablespaces) == 0 {
-		contextLogger.Info("skipping the Tablespace reconciler as it is not declared")
+	if cluster.ShouldCreateTablespaces() {
+		contextLogger.Info("no tablespaces to create")
 		return reconcile.Result{}, nil
 	}
 
@@ -105,7 +105,7 @@ func (r *TablespaceReconciler) reconcile(
 		tbsStorageManager,
 		tbsByAction,
 	); err != nil {
-		return reconcile.Result{}, fmt.Errorf("while apply tablespace change to database: %w", err)
+		return reconcile.Result{}, fmt.Errorf("while applying tablespace change to database: %w", err)
 	}
 
 	tbsInDatabase, err = tbsManager.List(ctx)

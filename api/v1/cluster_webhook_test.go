@@ -3290,7 +3290,6 @@ var _ = Describe("Tablespaces validation", func() {
 					Size: "10Gi",
 				},
 				Tablespaces: map[string]*TablespaceConfiguration{
-					// each repetition is 14 char long, so 5x14 = 70 char > postgres limit
 					"my_tablespace": {
 						Storage: StorageConfiguration{
 							Size: "10Gi",

@@ -11,7 +11,8 @@ import (
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/management/postgres"
 )
 
-// TablespaceReconciler is a Kubernetes manager.Runnable
+// TablespaceReconciler is a Kubernetes controller that ensures Tablespaces
+// are created in Postgres
 type TablespaceReconciler struct {
 	instance *postgres.Instance
 	client   client.Client
@@ -19,11 +20,11 @@ type TablespaceReconciler struct {
 
 // NewTablespaceReconciler creates a new TablespaceReconciler
 func NewTablespaceReconciler(instance *postgres.Instance, client client.Client) *TablespaceReconciler {
-	runner := &TablespaceReconciler{
+	controller := &TablespaceReconciler{
 		instance: instance,
 		client:   client,
 	}
-	return runner
+	return controller
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -54,7 +55,7 @@ func (r *TablespaceReconciler) GetClient() client.Client {
 	return r.client
 }
 
-// Instance get the PostgreSQL instance that this reconciler is working on
+// Instance returns the PostgreSQL instance that this reconciler is working on
 func (r *TablespaceReconciler) Instance() *postgres.Instance {
 	return r.instance
 }
