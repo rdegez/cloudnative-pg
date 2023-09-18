@@ -170,7 +170,7 @@ var _ = Describe("Tablespaces tests", Label(tests.LabelSmoke, tests.LabelStorage
 
 			By("verifying the number of tars in minio", func() {
 				backupTars := minioPath(clusterName, "*.tar")
-				// as there are 2 tablespaces, we should have 3 tar files
+				// as there are 2 tablespaces, we should have 3 tar files (data.tar + one tar per tablespace)
 				Eventually(func() (int, error) {
 					return testUtils.CountFilesOnMinio(namespace, minioClientName, backupTars)
 				}, 60).Should(BeEquivalentTo(3))
@@ -220,7 +220,7 @@ var _ = Describe("Tablespaces tests", Label(tests.LabelSmoke, tests.LabelStorage
 
 			By("verifying the number of tars in minio", func() {
 				backupTars := minioPath(clusterName, "*.tar")
-				// as there are 3 tablespaces, we should have 3 tar files
+				// as there are 2 tablespaces, we should have 3 tar files (data.tar + one tar per tablespace)
 				Eventually(func() (int, error) {
 					return testUtils.CountFilesOnMinio(namespace, minioClientName, backupTars)
 				}, 60).Should(BeEquivalentTo(3))
@@ -299,49 +299,12 @@ var _ = Describe("Tablespaces tests", Label(tests.LabelSmoke, tests.LabelStorage
 			})
 		})
 
-		It("can hibernate a cluster and verify required tablespaces left", func() {
-			By("verifying expected PVCs for tablespaces before hibernate", func() {
-				eventuallyHasExpectedNumberOfPVCs(6, namespace)
-			})
+		It("can hibernate via plugin a cluster with tablespaces", func() {
+			assertCanHibernateClusterWithTablespaces(namespace, clusterName, testUtils.HibernateImperatively, 2)
+		})
 
-			By("hibernate the cluster", func() {
-				err := testUtils.HibernateOn(namespace, clusterName)
-				Expect(err).ToNot(HaveOccurred())
-			})
-
-			By(fmt.Sprintf("verifying cluster %v pods are removed", clusterName), func() {
-				Eventually(func(g Gomega) {
-					podList, _ := env.GetClusterPodList(namespace, clusterName)
-					g.Expect(podList.Items).Should(BeEmpty())
-				}, 300).Should(Succeed())
-			})
-
-			By("verifying PVCs for tablespaces for one instance are kept", func() {
-				eventuallyHasExpectedNumberOfPVCs(2, namespace)
-			})
-
-			By("hibernate off the cluster", func() {
-				err := testUtils.HibernateOff(namespace, clusterName)
-				Expect(err).ToNot(HaveOccurred())
-			})
-
-			By("waiting for the cluster to be ready", func() {
-				AssertClusterIsReady(namespace, clusterName, testTimeouts[testUtils.ClusterIsReady], env)
-			})
-
-			By("verify tablespaces and PVC are there", func() {
-				cluster, err := env.GetCluster(namespace, clusterName)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(cluster.ShouldCreateTablespaces()).To(BeTrue())
-
-				AssertClusterHasMountPointsAndVolumesForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
-				AssertClusterHasPvcsAndDataDirsForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
-				AssertDatabaseContainsTablespaces(cluster, testTimeouts[testUtils.PodRollout])
-			})
-
-			By("verifying all PVCs for tablespaces are recreated", func() {
-				eventuallyHasExpectedNumberOfPVCs(6, namespace)
-			})
+		It("can hibernate via annotation a cluster with tablespaces", func() {
+			assertCanHibernateClusterWithTablespaces(namespace, clusterName, testUtils.HibernateDeclaratively, 6)
 		})
 
 		It("can fence a cluster with tablespaces using the plugin", func() {
@@ -565,6 +528,56 @@ func AssertDatabaseContainsTablespaces(cluster *apiv1.Cluster, timeout int) {
 				g.Expect(tbsListing).To(ContainSubstring(tbsName))
 			}
 		}, timeout).Should(Succeed())
+	})
+}
+
+func assertCanHibernateClusterWithTablespaces(
+	namespace string,
+	clusterName string,
+	method testUtils.HibernationMethod,
+	keptPVCs int,
+) {
+	By("verifying expected PVCs for tablespaces before hibernate", func() {
+		eventuallyHasExpectedNumberOfPVCs(6, namespace)
+	})
+
+	By("hibernate the cluster", func() {
+		err := testUtils.HibernateOn(env, namespace, clusterName, method)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	By(fmt.Sprintf("verifying cluster %v pods are removed", clusterName), func() {
+		Eventually(func(g Gomega) {
+			podList, _ := env.GetClusterPodList(namespace, clusterName)
+			g.Expect(podList.Items).Should(BeEmpty())
+		}, 300).Should(Succeed())
+	})
+
+	By("verifying expected number of PVCs for tablespaces are kept in hibernation", func() {
+		eventuallyHasExpectedNumberOfPVCs(keptPVCs, namespace)
+	})
+
+	By("hibernate off the cluster", func() {
+		err := testUtils.HibernateOff(env, namespace, clusterName, method)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	By("waiting for the cluster to be ready", func() {
+		AssertClusterIsReady(namespace, clusterName, testTimeouts[testUtils.ClusterIsReady], env)
+	})
+
+	By("verify tablespaces and PVC are there", func() {
+		cluster, err := env.GetCluster(namespace, clusterName)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cluster.ShouldCreateTablespaces()).To(BeTrue())
+
+		AssertClusterHasMountPointsAndVolumesForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
+		AssertClusterHasPvcsAndDataDirsForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
+		AssertDatabaseContainsTablespaces(cluster, testTimeouts[testUtils.PodRollout])
+	})
+
+	By("verifying all PVCs for tablespaces are recreated", func() {
+		eventuallyHasExpectedNumberOfPVCs(6, namespace)
 	})
 }
 
