@@ -27,6 +27,7 @@ import (
 
 	apiv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/certs"
+	"github.com/cloudnative-pg/cloudnative-pg/pkg/specs"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/utils"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/utils/logs"
 	"github.com/cloudnative-pg/cloudnative-pg/tests"
@@ -328,7 +329,81 @@ var _ = Describe("Tablespaces tests", Label(tests.LabelSmoke, tests.LabelStorage
 				AssertClusterIsReady(namespace, clusterName, testTimeouts[testUtils.ClusterIsReady], env)
 			})
 
-			By("verify tablespaces and PVC were created", func() {
+			By("verify tablespaces and PVC are there", func() {
+				cluster, err := env.GetCluster(namespace, clusterName)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(cluster.ShouldCreateTablespaces()).To(BeTrue())
+
+				AssertClusterHasMountPointsAndVolumesForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
+				AssertClusterHasPvcsAndDataDirsForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
+				AssertDatabaseContainsTablespaces(cluster, testTimeouts[testUtils.PodRollout])
+			})
+
+			By("verifying all PVCs for tablespaces are recreated", func() {
+				eventuallyHasExpectedNumberOfPVCs(6, namespace)
+			})
+		})
+
+		It("can fence a cluster with tablespaces using the plugin", func() {
+			By("verifying expected PVCs for tablespaces before hibernate", func() {
+				eventuallyHasExpectedNumberOfPVCs(6, namespace)
+			})
+
+			By("fencing the cluster", func() {
+				err := testUtils.FencingOn(env, "*", namespace, clusterName, testUtils.UsingPlugin)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			By("check all instances become not ready", func() {
+				Eventually(func() (bool, error) {
+					podList, err := env.GetClusterPodList(namespace, clusterName)
+					if err != nil {
+						return false, err
+					}
+					var hasReadyPod bool
+					for _, pod := range podList.Items {
+						for _, podInfo := range pod.Status.ContainerStatuses {
+							if podInfo.Name == specs.PostgresContainerName {
+								if podInfo.Ready {
+									hasReadyPod = true
+								}
+							}
+						}
+					}
+					return hasReadyPod, nil
+				}, 120, 5).Should(BeFalse())
+			})
+
+			By("un-fencing the cluster", func() {
+				err := testUtils.FencingOff(env, "*", namespace, clusterName, testUtils.UsingPlugin)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			By("all instances become ready", func() {
+				Eventually(func() (bool, error) {
+					podList, err := env.GetClusterPodList(namespace, clusterName)
+					if err != nil {
+						return false, err
+					}
+					var hasReadyPod bool
+					for _, pod := range podList.Items {
+						for _, podInfo := range pod.Status.ContainerStatuses {
+							if podInfo.Name == specs.PostgresContainerName {
+								if podInfo.Ready {
+									hasReadyPod = true
+								}
+							}
+						}
+					}
+					return hasReadyPod, nil
+				}, 120, 5).Should(BeTrue())
+			})
+
+			By("waiting for the cluster to be ready", func() {
+				AssertClusterIsReady(namespace, clusterName, testTimeouts[testUtils.ClusterIsReady], env)
+			})
+
+			By("verify tablespaces and PVC are there", func() {
 				cluster, err := env.GetCluster(namespace, clusterName)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(cluster.ShouldCreateTablespaces()).To(BeTrue())
