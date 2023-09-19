@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -154,7 +155,7 @@ var _ = Describe("Tablespaces tests", Label(tests.LabelSmoke, tests.LabelStorage
 		})
 
 		It("can verify tablespaces and PVC were created", func() {
-			AssertClusterHasMountPointsAndVolumesForTablespaces(cluster, testTimeouts[testUtils.Short])
+			AssertClusterHasMountPointsAndVolumesForTablespaces(cluster, 2, testTimeouts[testUtils.Short])
 			AssertClusterHasPvcsAndDataDirsForTablespaces(cluster, testTimeouts[testUtils.Short])
 			AssertDatabaseContainsTablespaces(cluster, testTimeouts[testUtils.Short])
 		})
@@ -213,17 +214,35 @@ var _ = Describe("Tablespaces tests", Label(tests.LabelSmoke, tests.LabelStorage
 				AssertClusterIsReady(namespace, clusterName, testTimeouts[testUtils.ClusterIsReady], env)
 			})
 
-			By(fmt.Sprintf("creating new backup %s and verifying backup is ready", backupName), func() {
-				testUtils.ExecuteBackup(namespace, clusterBackupManifest, false, testTimeouts[testUtils.BackupIsReady], env)
+			By("verifying there are 3 tablespaces and PVCs were created", func() {
+				cluster, err = env.GetCluster(namespace, clusterName)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(cluster.Spec.Tablespaces).To(HaveLen(3))
+
+				AssertClusterHasMountPointsAndVolumesForTablespaces(cluster, 3, testTimeouts[testUtils.PodRollout])
+				AssertClusterHasPvcsAndDataDirsForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
+				AssertDatabaseContainsTablespaces(cluster, testTimeouts[testUtils.PodRollout])
+			})
+
+			By("verifying expected number of PVCs for tablespaces", func() {
+				// 2 pods x 3 tablespaces = 6 pvcs for tablespaces
+				eventuallyHasExpectedNumberOfPVCs(6, namespace)
+			})
+
+			By("creating new backup and verifying backup is ready", func() {
+				_, stderr, err := testUtils.Run(fmt.Sprintf("kubectl cnpg backup %s -n %s", clusterName, namespace))
+				Expect(stderr).To(BeEmpty())
+				Expect(err).ShouldNot(HaveOccurred())
+
 				AssertBackupConditionInClusterStatus(namespace, clusterName)
 			})
 
-			By("verifying the number of tars in minio", func() {
-				backupTars := minioPath(clusterName, "*.tar")
-				// as there are 2 tablespaces, we should have 3 tar files (data.tar + one tar per tablespace)
-				Eventually(func() (int, error) {
-					return testUtils.CountFilesOnMinio(namespace, minioClientName, backupTars)
-				}, 60).Should(BeEquivalentTo(3))
+			By("verifying the number of tars in the latest base backup", func() {
+				backups := 2
+				eventuallyHasCompletedBackups(namespace, backups)
+				// in the latest base backup, we expect 4 tars
+				//   (data.tar + 3 tars for each of the 3 tablespaces)
+				latestBaseBackupContainsExpectedTars(clusterName, namespace, backups, 4)
 			})
 
 			By("verify backup status", func() {
@@ -293,7 +312,7 @@ var _ = Describe("Tablespaces tests", Label(tests.LabelSmoke, tests.LabelStorage
 				Expect(err).ToNot(HaveOccurred())
 				Expect(cluster.ShouldCreateTablespaces()).To(BeTrue())
 
-				AssertClusterHasMountPointsAndVolumesForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
+				AssertClusterHasMountPointsAndVolumesForTablespaces(cluster, 2, testTimeouts[testUtils.PodRollout])
 				AssertClusterHasPvcsAndDataDirsForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
 				AssertDatabaseContainsTablespaces(cluster, testTimeouts[testUtils.PodRollout])
 			})
@@ -371,7 +390,7 @@ var _ = Describe("Tablespaces tests", Label(tests.LabelSmoke, tests.LabelStorage
 				Expect(err).ToNot(HaveOccurred())
 				Expect(cluster.ShouldCreateTablespaces()).To(BeTrue())
 
-				AssertClusterHasMountPointsAndVolumesForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
+				AssertClusterHasMountPointsAndVolumesForTablespaces(cluster, 2, testTimeouts[testUtils.PodRollout])
 				AssertClusterHasPvcsAndDataDirsForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
 				AssertDatabaseContainsTablespaces(cluster, testTimeouts[testUtils.PodRollout])
 			})
@@ -396,7 +415,11 @@ func addTablespaces(cluster *apiv1.Cluster, tbsMap map[string]*apiv1.TablespaceC
 	Expect(err).ToNot(HaveOccurred())
 }
 
-func AssertClusterHasMountPointsAndVolumesForTablespaces(cluster *apiv1.Cluster, timeout int) {
+func AssertClusterHasMountPointsAndVolumesForTablespaces(
+	cluster *apiv1.Cluster,
+	numTablespaces int,
+	timeout int,
+) {
 	namespace := cluster.ObjectMeta.Namespace
 	clusterName := cluster.ObjectMeta.Name
 	podMountPaths := func(pod corev1.Pod) (bool, []string) {
@@ -416,7 +439,7 @@ func AssertClusterHasMountPointsAndVolumesForTablespaces(cluster *apiv1.Cluster,
 	By("checking the mount points and volumes in the pods", func() {
 		Eventually(func(g Gomega) {
 			g.Expect(cluster.ShouldCreateTablespaces()).To(BeTrue())
-			g.Expect(cluster.Spec.Tablespaces).To(HaveLen(2))
+			g.Expect(cluster.Spec.Tablespaces).To(HaveLen(numTablespaces))
 			podList, err := env.GetClusterPodList(namespace, clusterName)
 			g.Expect(err).ToNot(HaveOccurred())
 			for _, pod := range podList.Items {
@@ -571,7 +594,7 @@ func assertCanHibernateClusterWithTablespaces(
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cluster.ShouldCreateTablespaces()).To(BeTrue())
 
-		AssertClusterHasMountPointsAndVolumesForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
+		AssertClusterHasMountPointsAndVolumesForTablespaces(cluster, 2, testTimeouts[testUtils.PodRollout])
 		AssertClusterHasPvcsAndDataDirsForTablespaces(cluster, testTimeouts[testUtils.PodRollout])
 		AssertDatabaseContainsTablespaces(cluster, testTimeouts[testUtils.PodRollout])
 	})
@@ -596,4 +619,41 @@ func eventuallyHasExpectedNumberOfPVCs(pvcCount int, namespace string) {
 		}
 		g.Expect(tbsPvc).Should(Equal(pvcCount))
 	}, testTimeouts[testUtils.ClusterIsReady]).Should(Succeed())
+}
+
+func eventuallyHasCompletedBackups(namespace string, numBackups int) {
+	Eventually(func(g Gomega) {
+		backups, err := env.GetBackupList(namespace)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(backups.Items).To(HaveLen(numBackups))
+
+		completedBackups := 0
+		for _, backup := range backups.Items {
+			if string(backup.Status.Phase) == "completed" {
+				completedBackups++
+			}
+		}
+		g.Expect(completedBackups).To(Equal(numBackups))
+	}, 120).Should(Succeed())
+}
+
+func latestBaseBackupContainsExpectedTars(
+	clusterName string,
+	namespace string,
+	numBackups int,
+	expectedTars int,
+) {
+	Eventually(func() (int, error) {
+		// we list the backup.info files to get the listing of base backups
+		// directories in minio
+		backupInfoFiles := filepath.Join("*", clusterName, "base", "*", "*.info")
+		ls, err := testUtils.ListFilesOnMinio(namespace, minioClientName, backupInfoFiles)
+		Expect(err).ShouldNot(HaveOccurred())
+		frags := strings.Split(ls, "\n")
+		Expect(frags).To(HaveLen(numBackups))
+		latestBaseBackup := filepath.Dir(frags[numBackups-1])
+		tarsInLastBackup := strings.TrimPrefix(filepath.Join(latestBaseBackup, "*.tar"), "minio/")
+		numTars, err := testUtils.CountFilesOnMinio(namespace, minioClientName, tarsInLastBackup)
+		return numTars, err
+	}, 120).Should(Equal(expectedTars))
 }
