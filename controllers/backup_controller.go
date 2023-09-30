@@ -229,6 +229,7 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 		err = updateFirstRecoverabilityPoint(ctx, r.Client, &cluster)
 		if err != nil {
+			contextLogger.Error(err, "could not update cluster's first recoverability point")
 			return ctrl.Result{}, err
 		}
 	default:
@@ -407,7 +408,7 @@ func (r *BackupReconciler) reconcileSnapshotBackup(
 	return nil, postgres.PatchBackupStatusAndRetry(ctx, r.Client, backup)
 }
 
-// annotateSnapshots adds labels and annotations to the snapshots using the backup
+// annotateSnapshotsWithBackupData adds labels and annotations to the snapshots using the backup
 // status to facilitate access
 func annotateSnapshotsWithBackupData(
 	ctx context.Context,
@@ -475,7 +476,7 @@ func updateFirstRecoverabilityPoint(
 		oldestSnapshot.Before(firstRecoverabilityTime) {
 		oldCluster := clusterNow.DeepCopy()
 		clusterNow.Status.FirstRecoverabilityPoint = oldestSnapshot.Format(time.RFC3339)
-		err = cli.Patch(ctx, &clusterNow, client.MergeFrom(oldCluster))
+		err = cli.Status().Patch(ctx, &clusterNow, client.MergeFrom(oldCluster))
 		if err != nil {
 			return wrapErr("could not patch cluster status", err)
 		}
